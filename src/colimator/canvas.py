@@ -30,6 +30,15 @@ class Node:
 
 
 @dataclass
+class Link:
+    """Связь между двумя узлами: линия с точкой на конце."""
+
+    a: int          # индексы в Scene.nodes
+    b: int
+    appear: float = 0.0
+
+
+@dataclass
 class CameraKey:
     t: float
     x: int
@@ -41,6 +50,7 @@ class CameraKey:
 class Scene:
     duration: float
     nodes: list[Node] = field(default_factory=list)
+    links: list[Link] = field(default_factory=list)
     camera: list[CameraKey] = field(default_factory=list)
     fps: int = 30
 
@@ -63,15 +73,20 @@ _PAGE = """<!doctype html>
   .node {{ position: absolute; transform: translate(-50%, -50%); white-space: nowrap;
            opacity: 0; will-change: opacity, transform; }}
   .heading {{ font-family: 'Heading', Georgia, serif; font-weight: 600; font-size: 62px;
-              color: {ink}; letter-spacing: -.5px; }}
-  .ghost {{ font-family: 'Heading', Georgia, serif; font-size: 20px; color: rgba(7,6,2,.34); }}
+              color: {ink}; letter-spacing: -.5px; background: {bg}; padding: 2px 14px; }}
+  .ghost {{ font-family: 'Heading', Georgia, serif; font-size: 32px; color: rgba(7,6,2,.44); }}
   .pill {{ font-family: 'Body', Georgia, serif; font-size: 34px; color: {ink};
-           border: 2.5px solid {ink}; border-radius: 999px; padding: 14px 30px; background: transparent; }}
+           border: 2.5px solid {ink}; border-radius: 999px; padding: 14px 30px; background: {bg}; }}
   .accent {{ background: {green}; color: {bg}; border-color: {green}; }}
+  .link {{ position: absolute; height: 2px; background: {ink}; transform-origin: 0 50%;
+           opacity: 0; }}
+  .link::after {{ content: ''; position: absolute; right: -5px; top: -4px;
+                  width: 10px; height: 10px; border-radius: 50%; background: {ink}; }}
 </style>
 <div id="viewport"><div id="world"></div></div>
 <script>
 const NODES = {nodes};
+const LINKS = {links};
 const CAMERA = {camera};
 const world = document.getElementById('world');
 NODES.forEach((n, i) => {{
@@ -82,6 +97,19 @@ NODES.forEach((n, i) => {{
   el.textContent = n.text;
   el.dataset.appear = n.appear;
   world.appendChild(el);
+}});
+
+LINKS.forEach(l => {{
+  const a = NODES[l.a], b = NODES[l.b];
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const el = document.createElement('div');
+  el.className = 'link';
+  el.style.left = a.x + 'px';
+  el.style.top = a.y + 'px';
+  el.style.width = Math.hypot(dx, dy) + 'px';
+  el.style.transform = `rotate(${{Math.atan2(dy, dx)}}rad)`;
+  el.dataset.appear = l.appear;
+  world.insertBefore(el, world.firstChild);   // линии под узлами
 }});
 
 const ease = u => u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u);
@@ -107,7 +135,9 @@ window.seek = function (t) {{
   for (const el of world.children) {{
     const u = ease((t - parseFloat(el.dataset.appear)) / 0.42);
     el.style.opacity = u;
-    el.style.transform = `translate(-50%, -50%) translateY(${{(1 - u) * 18}}px)`;
+    if (!el.classList.contains('link')) {{
+      el.style.transform = `translate(-50%, -50%) translateY(${{(1 - u) * 18}}px)`;
+    }}
   }}
 }};
 </script>
@@ -141,6 +171,7 @@ def render(scene: Scene, out_dir: Path) -> int:
         green=GREEN,
         fonts=FONTS_DIR.as_posix(),
         nodes=json.dumps(nodes, ensure_ascii=False),
+        links=json.dumps([vars(l) for l in scene.links], ensure_ascii=False),
         camera=json.dumps([vars(k) for k in scene.camera], ensure_ascii=False),
     )
 
