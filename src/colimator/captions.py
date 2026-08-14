@@ -47,7 +47,9 @@ class Line:
 
 
 def _hms(h: str, m: str, s: str, ms: str) -> float:
-    return int(h) * 3600 + int(m) * 60 + int(s) + int(ms.ljust(3, "0")) / 1000
+    # Некоторые экспортёры срезают ведущие нули в миллисекундах: "06,59" — это
+    # 6.059, а не 6.590. Дополняем слева, иначе реплики наезжают друг на друга.
+    return int(h) * 3600 + int(m) * 60 + int(s) + int(ms.zfill(3)) / 1000
 
 
 def parse_subtitles(raw: str) -> list[Cue]:
@@ -144,10 +146,16 @@ def chunk(words: list[Word], cadence: Cadence | None = None) -> list[Line]:
         current.append(word)
         count = len(current)
         duration = current[-1].end - current[0].start
+        score = _break_score(word.text)
+        # Конец предложения закрывает строку всегда: в референсе строка никогда
+        # не перетекает через точку в следующую фразу.
+        if score >= 2:
+            close()
+            continue
         if count >= cadence.max_words or duration >= cadence.max_duration:
             close()
             continue
-        if count >= cadence.min_words and _break_score(word.text) > 0:
+        if count >= cadence.min_words and score > 0:
             close()
 
     close()
