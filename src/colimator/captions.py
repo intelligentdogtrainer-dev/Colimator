@@ -189,8 +189,13 @@ def _ass_color(hex_color: str, opacity: float = 1.0) -> str:
     return f"&H{alpha:02X}{b:02X}{g:02X}{r:02X}"
 
 
-def to_ass(lines: list[Line], style: CaptionStyle | None = None) -> str:
-    """Собирает .ass с плашкой и фиксированной позицией строки."""
+def to_ass(lines: list[Line], style: CaptionStyle | None = None,
+           layer: int = 0) -> str:
+    """Собирает .ass с плашкой и фиксированной позицией строки.
+
+    layer задаёт порядок отрисовки: события с большим значением рисуются
+    поверх. Пригодится, если под субтитры нужно подложить что-то ещё.
+    """
     style = style or CaptionStyle()
     # BorderStyle=3 рисует непрозрачную плашку, её поля задаются Outline.
     header = f"""[Script Info]
@@ -209,14 +214,31 @@ Style: Caption,{style.font},{style.size},{_ass_color(style.text_color)},{_ass_co
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     body = "".join(
-        f"Dialogue: 0,{_ass_time(ln.start)},{_ass_time(ln.end)},Caption,,0,0,0,,"
+        f"Dialogue: {layer},{_ass_time(ln.start)},{_ass_time(ln.end)},Caption,,0,0,0,,"
         f"{{\\pos({FRAME_W // 2},{style.y_px})}}{ln.text}\n"
         for ln in lines
     )
     return header + body
 
 
+def hold_until_next(lines: list[Line], cadence: Cadence | None = None) -> list[Line]:
+    """Держит строку на экране до появления следующей, убирая просветы.
+
+    Нужно, когда субтитры обязаны закрывать что-то в кадре — например подписи,
+    вжатые в исходник экспортом монтажки: в паузе между нашими строками эти
+    подписи иначе видно.
+    """
+    cadence = cadence or Cadence()
+    for current, following in zip(lines, lines[1:]):
+        current.end = max(current.end, following.start - cadence.gap)
+    return lines
+
+
 def build(raw_subtitles: str, style: CaptionStyle | None = None,
-          cadence: Cadence | None = None) -> str:
+          cadence: Cadence | None = None, continuous: bool = False,
+          layer: int = 0) -> str:
     """SRT/VTT -> готовый .ass в стиле референса."""
-    return to_ass(chunk(to_words(parse_subtitles(raw_subtitles)), cadence), style)
+    lines = chunk(to_words(parse_subtitles(raw_subtitles)), cadence)
+    if continuous:
+        lines = hold_until_next(lines, cadence)
+    return to_ass(lines, style, layer)
