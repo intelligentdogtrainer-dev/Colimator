@@ -63,8 +63,8 @@ class Scene:
 _PAGE = """<!doctype html>
 <meta charset="utf-8">
 <style>
-  @font-face {{ font-family: 'Heading'; src: url('file://{fonts}/PlayfairDisplay[wght].ttf'); }}
-  @font-face {{ font-family: 'Body'; src: url('file://{fonts}/PT_Serif-Web-Regular.ttf'); }}
+  @font-face {{ font-family: 'Heading'; src: url('{font_heading}'); }}
+  @font-face {{ font-family: 'Body'; src: url('{font_body}'); }}
   html, body {{ margin: 0; width: {w}px; height: {h}px; overflow: hidden; background: {bg}; }}
   /* Клетка холста: две сетки — мелкая и покрупнее, обе едва заметны. */
   #viewport {{
@@ -174,7 +174,10 @@ def render(scene: Scene, out_dir: Path) -> int:
         bg=CANVAS_BG,
         ink=INK,
         green=GREEN,
-        fonts=FONTS_DIR.as_posix(),
+        # as_uri() даёт корректный file:// и на Windows: там путь начинается
+        # с буквы диска, и наивная склейка «file://» + путь не читается.
+        font_heading=(FONTS_DIR / "PlayfairDisplay[wght].ttf").as_uri(),
+        font_body=(FONTS_DIR / "PT_Serif-Web-Regular.ttf").as_uri(),
         nodes=json.dumps(nodes, ensure_ascii=False),
         links=json.dumps([vars(l) for l in scene.links], ensure_ascii=False),
         camera=json.dumps([vars(k) for k in scene.camera], ensure_ascii=False),

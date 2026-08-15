@@ -15,9 +15,16 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
-Проверка, что ffmpeg на месте: `ffmpeg -version`.
-Если его нет — macOS `brew install ffmpeg`, Ubuntu `apt install ffmpeg`,
-Windows проще всего через `winget install Gyan.FFmpeg`.
+Дальше — одна команда, которая проверит всё сразу:
+
+```bash
+python scripts/check_env.py
+```
+
+Она скажет, чего не хватает. Чаще всего это ffmpeg: playwright ставит свою
+копию, но она не попадает в PATH и нам не годится. Ставить отдельно —
+macOS `brew install ffmpeg`, Ubuntu `apt install ffmpeg`, Windows
+`winget install Gyan.FFmpeg` и потом перезапустить терминал.
 
 ## Что умеет
 
