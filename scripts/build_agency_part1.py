@@ -33,10 +33,14 @@ FPS = 30
 
 HEAD = 0.82         # с какой секунды исходника начинается ролик
 CANVAS_IN = 7.62    # уход на холст
-END = 13.48         # конец куска
+AUDIO_END = 13.48   # докуда идёт речь
+END = 15.68         # с концовкой
 
 CAPTIONS = CaptionStyle()
 TITLE = "Что собака решает сама?"
+# Текст концовки — заглушка: меняется этими двумя строками.
+ENDCARD_TITLE = "Полный разбор"
+ENDCARD_CTA = "на YouTube"
 
 
 def run(cmd: list[str]) -> None:
@@ -48,7 +52,7 @@ def run(cmd: list[str]) -> None:
 def canvas_scene() -> Scene:
     """«Чего она хочет»: три потребности выезжают ровно на своих словах."""
     return Scene(
-        duration=END - CANVAS_IN,
+        duration=AUDIO_END - CANVAS_IN,
         fps=FPS,
         nodes=[
             Node(-560, -380, "Прогулка", "ghost"),
@@ -78,7 +82,23 @@ def canvas_scene() -> Scene:
             CameraKey(t=1.9, x=-30, y=83, scale=0.95),
             CameraKey(t=3.0, x=30, y=172, scale=0.92),
             CameraKey(t=4.0, x=-20, y=280, scale=0.90),
-            CameraKey(t=END - CANVAS_IN, x=0, y=300, scale=0.88),
+            CameraKey(t=AUDIO_END - CANVAS_IN, x=0, y=300, scale=0.88),
+        ],
+    )
+
+
+def endcard_scene() -> Scene:
+    """Призыв уйти на YouTube. Зелёная таблетка — единственный акцент цветом."""
+    return Scene(
+        duration=END - AUDIO_END,
+        fps=FPS,
+        nodes=[
+            Node(0, -60, ENDCARD_TITLE, "heading", appear=0.12),
+            Node(0, 80, "*" + ENDCARD_CTA, "pill", appear=0.50),
+        ],
+        camera=[
+            CameraKey(t=0.0, x=0, y=0, scale=1.00),
+            CameraKey(t=END - AUDIO_END, x=0, y=-30, scale=1.05),
         ],
     )
 
@@ -102,8 +122,10 @@ def shots() -> list[Shot]:
              Move(zoom=(1.44, 1.50), center=((0.48, 0.31), (0.48, 0.31))),
              offset=7.60, transition="cut"),
         # Ответ уходит на графику.
-        Shot(CANVAS_IN, END, "canvas", Move(),
+        Shot(CANVAS_IN, AUDIO_END, "canvas", Move(),
              transition="blur", trans_dur=0.5),
+        Shot(AUDIO_END, END, "end", Move(),
+             transition="dissolve", trans_dur=0.45),
     ]
 
 
@@ -132,12 +154,14 @@ def main() -> None:
     run(["ffmpeg", "-y", "-v", "error", "-i", str(SOURCE),
          "-vf", f"fps={FPS}", "-q:v", "2", str(video_dir / "v_%05d.jpg")])
 
-    canvas_dir = WORK / "canvas"
+    canvas_dir, end_dir = WORK / "canvas", WORK / "end"
     print(f"холст: {render(canvas_scene(), canvas_dir)} кадров")
+    print(f"концовка: {render(endcard_scene(), end_dir)} кадров")
 
     sources = {
         "video": Frames(video_dir, "v_%05d.jpg", FPS),
         "canvas": Frames(canvas_dir, "frame_%05d.png", FPS),
+        "end": Frames(end_dir, "frame_%05d.png", FPS),
     }
     frames_dir = WORK / "out"
     print(f"сборка: {compose(shots(), sources, END, FPS, frames_dir)} кадров")
@@ -154,9 +178,10 @@ def main() -> None:
         "-filter_complex",
         (
             f"[0:v]subtitles='{ass}':fontsdir='{fonts}'[vout];"
-            f"[1:a]atrim={HEAD}:{HEAD + END},asetpts=PTS-STARTPTS,"
+            f"[1:a]atrim={HEAD}:{HEAD + AUDIO_END},asetpts=PTS-STARTPTS,"
             # Громкость под площадки: EBU R128, как требуют TikTok и Reels.
-            f"loudnorm=I=-14:TP=-1.5:LRA=11[aout]"
+            # Концовка идёт в тишине, поэтому хвост добивается apad.
+            f"loudnorm=I=-14:TP=-1.5:LRA=11,apad[aout]"
         ),
         "-map", "[vout]", "-map", "[aout]", "-t", str(END),
         "-c:v", "libx264", "-crf", "19", "-preset", "medium", "-pix_fmt", "yuv420p",
