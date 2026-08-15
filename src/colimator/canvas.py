@@ -14,8 +14,13 @@ from pathlib import Path
 
 from .style import CANVAS_BG, FRAME_H, FRAME_W, GREEN, INK
 
-CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
 FONTS_DIR = Path(__file__).resolve().parents[2] / "assets" / "fonts"
+
+# В песочнице Chromium лежит по фиксированному пути и не совпадает по версии
+# с пакетом playwright. На обычной машине путь не нужен — playwright найдёт
+# браузер сам после `playwright install chromium`.
+_SANDBOX_CHROME = Path("/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
+CHROME = str(_SANDBOX_CHROME) if _SANDBOX_CHROME.exists() else None
 
 
 @dataclass
@@ -177,10 +182,11 @@ def render(scene: Scene, out_dir: Path) -> int:
 
     total = int(round(scene.duration * scene.fps))
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(
-            executable_path=CHROME,
-            args=["--no-sandbox", "--force-device-scale-factor=1", "--hide-scrollbars"],
-        )
+        launch = {"args": ["--no-sandbox", "--force-device-scale-factor=1",
+                           "--hide-scrollbars"]}
+        if CHROME:
+            launch["executable_path"] = CHROME
+        browser = pw.chromium.launch(**launch)
         page = browser.new_page(viewport={"width": FRAME_W, "height": FRAME_H})
         page.set_content(page_html)
         page.wait_for_timeout(400)  # дать шрифтам подгрузиться

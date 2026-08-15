@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
 out/
+media/
+course/
+!media/README.md
+!course/README.md
